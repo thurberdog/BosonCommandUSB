@@ -9,11 +9,20 @@
 class BosonUSB : public QObject
 {
     Q_OBJECT
-        public:
+        int sendPacket(QByteArray &data, QByteArray &crc);
+public:
                  explicit BosonUSB(QObject *parent = nullptr);
             QSerialPort * bosonCommandUSB;
-        signals:
+signals:
+private slots:
+                 void onReadyRead();
+private:
+    unsigned char sequence=0;               // This number increases in every SENT commnand.
 
+    int getFPAtemperature();
+    int getSerialNumber();
+    int flatFieldCorrection();
+    unsigned short CalcBlockCRC16(unsigned int bufferlen, unsigned char *buffer);
 };
 
 #endif // BOSONUSB_HPP

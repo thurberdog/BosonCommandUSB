@@ -4,8 +4,7 @@
 
 int main(int argc, char *argv[])
 {
-    BosonUSB * commandUSB;
-    commandUSB = new BosonUSB();
+
     if (qEnvironmentVariableIsEmpty("QTGLESSTREAM_DISPLAY")) {
         qputenv("QT_QPA_EGLFS_PHYSICAL_WIDTH", QByteArray("213"));
         qputenv("QT_QPA_EGLFS_PHYSICAL_HEIGHT", QByteArray("120"));
@@ -16,7 +15,8 @@ int main(int argc, char *argv[])
     }
 
     QGuiApplication app(argc, argv);
-
+    BosonUSB * commandUSB;
+    commandUSB = new BosonUSB();
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
