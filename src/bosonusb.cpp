@@ -52,6 +52,7 @@ BosonUSB::BosonUSB(QObject *parent) : QObject(parent) {
   if (bosonCommandUSB->open(QIODevice::ReadWrite)) {
     // Connected
     qDebug() << __LINE__ << __FUNCTION__ << "Boson Command channel open. ";
+    enableRadiometry();
     flatFieldCorrection();
     getSerialNumber();
     getFPAtemperature();
@@ -96,6 +97,26 @@ void BosonUSB::onSendDataTimeout() {
 void BosonUSB::onErrorOccurred(QSerialPort::SerialPortError error) {
   qDebug() << __LINE__ << __FUNCTION__ << error << "Error occurred. "
            << bosonCommandUSB->errorString();
+}
+
+// the HEX commands to enable the radiometry readings over USB.
+
+// For the USB out to function properly you will need to send it
+// sysctrlSetUsbVideoIR16Mode() ID: 0x000E000D
+
+int BosonUSB::enableRadiometry() {
+
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x0E;
+  functionID[2] = 0x00;
+  functionID[3] = 0x0D;
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = 0x49;
+  crc[1] = 0x66;
+  return sendPacket(functionID, crc);
 }
 /**
  * @brief BosonUSB::getFPAtemperature
@@ -158,9 +179,12 @@ int BosonUSB::sendPacket(QByteArray &data, QByteArray &crc) {
   packet[14] = crc[0]; // CRC
   packet[15] = crc[1]; // CRC
   packet[16] = 0xAE;   // End packet
-  bosonCommandUSB->write(packet);
-  qDebug() << __LINE__ << __FUNCTION__ << bosonCommandUSB->errorString();
-  qDebug() << __LINE__ << __FUNCTION__ << packet.toHex();
+  result = bosonCommandUSB->write(packet);
+  if (result < 0) {
+    qDebug() << __LINE__ << __FUNCTION__ << bosonCommandUSB->errorString();
+  } else {
+    qDebug() << __LINE__ << __FUNCTION__ << packet.toHex();
+  }
 
   return bosonCommandUSB->error();
 }
