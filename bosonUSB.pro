@@ -26,5 +26,4 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     src/bosonusb.hpp
 
-DISTFILES += \
-    qml/main.qml
+DISTFILES +=

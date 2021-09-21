@@ -32,6 +32,7 @@ private:
   int flatFieldCorrection();
   unsigned short CalcBlockCRC16(unsigned int bufferlen, unsigned char *buffer);
   qint64 sendBosonCommand(QByteArray bosonCommand);
+  int enableRadiometry();
 };
 
 #endif // BOSONUSB_HPP
