@@ -1,4 +1,4 @@
-#include "bosonusb.hpp"
+﻿#include "bosonusb.hpp"
 /**
  * @brief BosonUSB::BosonUSB
  * @param parent
@@ -163,23 +163,53 @@ int BosonUSB::sendPacket(QByteArray &data, QByteArray &crc) {
   //          Byte 16 - End frame byte = 0xAE
   QByteArray packet;
   packet.resize(17);
-  packet[0] = 0x8E;            // Start packet
-  packet[1] = 0x00;            // channel number
+  packet[0] = 0x8E; // Start packet
+  packet[1] = 0x00; // channel number
+  //  The Channel Number shall also be a single byte. It is used to specify a
+  //  different logical path, or channel, of communication over the single UART
+  //  physical interface. For example, a Client may communicate with a Camera in
+  //  a command/response type fashion on one channel while at the same time
+  //  (i.e., packet multiplexed) be receiving ‘streaming debug’ data from the
+  //  Camera on a different Channel. Channel 0 shall be reserved in both Clients
+  //  and in Cameras for The FLIR Binary Protocol.
   packet[2] = 0x00;            // sequence number
   packet[3] = 0x00;            // sequence number
   packet[4] = 0x00;            // sequence number
   packet[5] = sequence & 0xFF; // sequence number
-  packet[6] = data[0];         // function ID
-  packet[7] = data[1];         // function ID
-  packet[8] = data[2];         // function ID
-  packet[9] = data[3];         // function ID
-  packet[10] = 0xFF;
-  packet[11] = 0xFF;
-  packet[12] = 0xFF;
-  packet[13] = 0xFF;
+  //  The Client can sends any 4-byte value for this field and the Camera will
+  //  echo it back. The Client is free to use this field in any way it sees fit.
+  //  The expected use is that Sequence will increase monotonically.
+  packet[6] = data[0]; // Command ID
+  packet[7] = data[1]; // Command ID
+  packet[8] = data[2]; // Command ID
+  packet[9] = data[3]; // Command ID
+  //  The Client uses different Command Ids (opCodes) to tell the Camera to do
+  //  different things. Conceptually, one can think of the Command Id as the
+  //  address of the subroutine that the Client would like the Camera to
+  //  execute. The Camera shall echo the Command Id in its response.
+  packet[10] = 0xFF; // Command Status
+  packet[11] = 0xFF; // Command Status
+  packet[12] = 0xFF; // Command Status
+  packet[13] = 0xFF; // Command Status
+  //  Commands shall always be sent with Status equal to all F’s.
+  //  Commands received with a Status other that all F’s shall be discarded.
+  //  Responses with a Payload Status of all 0’s shall indicate a successful
+  //  execution of the Command (Data part of the Payload is ‘accurate’). Any
+  //  value other than all zeros (or all F’s) shall indicate the Camera
+  //  encountered an error while trying to execute the functionality associated
+  //  with the Command Id or that the Command Id itself was invalid. Specific
+  //  Command Status values (other than all 0 and all F) are TBD. Note: Per the
+  //  above, a Response containing all F’s for the Command Status probably
+  //  indicates existence of a ‘wrap-around cable’.
   packet[14] = crc[0]; // CRC
   packet[15] = crc[1]; // CRC
-  packet[16] = 0xAE;   // End packet
+                       //  The CRC validates the integrity of the Packet.
+  //  The first byte included in the CRC calculation shall be the Channel
+  //  Number. The last byte included in the CRC calculation shall be the last
+  //  byte of the Payload. The CRC shall (logically) be performed on a non byte
+  //  stuffed entity; i.e., the CRC calculation shall be performed on exactly
+  //  N+3 bytes where N is the number of bytes in the Payload (0<=N<=768).
+  packet[16] = 0xAE; // End packet
   result = bosonCommandUSB->write(packet);
   if (result < 0) {
     qDebug() << __LINE__ << __FUNCTION__ << bosonCommandUSB->errorString();
@@ -266,13 +296,15 @@ int BosonUSB::flatFieldCorrection() {
  */
 int BosonUSB::agcSetROI(uint16_t rowStart, uint16_t rowStop,
                         uint16_t columnStart, uint16_t columnStop) {
+  //    Define the current region of interest. Set the start and stop columns
+  //    and rows, starting with column=0, row=0 in the upper left corner.
   QByteArray functionID;
   functionID.resize(4);
   functionID[0] = 0x00;
   functionID[1] = 0x09;
   functionID[2] = 0x00;
   functionID[3] = 0x20;
-  QByteArray data;
+  QByteArray data; // FLR_ROI_T
   data.resize(8);
   data[0] = rowStart & 0xFF;
   data[1] = (rowStart << 8) & 0xFF;
@@ -292,8 +324,195 @@ int BosonUSB::agcSetROI(uint16_t rowStart, uint16_t rowStop,
   packet.append(crc);
   return sendBosonCommand(packet);
 }
+
+/**
+ * @brief BosonUSB::roicGetFPATemp
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::roicGetFPATemp() {
+  //    Reads the raw (uncorrected) output of the on-chip temperature sensor.
+  //    Note: A different command, bosonlookupFPATempDegCx10, provides the
+  //    calibrated output in degrees Celsius, and bosonlookupFPATempDegKx10
+  //    provides the output in Kelvin.
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x02;
+  functionID[2] = 0x00;
+  functionID[3] = 0x01;
+  QByteArray data;
+  data.resize(2);
+  data[0] = 0xFF;
+  data[1] = 0xFF;
+
+  QByteArray packet(functionID + data);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
+/**
+ * @brief BosonUSB::roicGetFPATempTable
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::roicGetFPATempTable()
+
+{
+  //    Reads the look-up table used internally for conversion of the raw output
+  //    of the camera's internal temp sensor into a calibrated value (deg C or
+  //    Kelvin).
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x02;
+  functionID[2] = 0x00;
+  functionID[3] = 0x20;
+  QByteArray packet(functionID);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
+/**
+ * @brief BosonUSB::roicGetFPATempValue
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::roicGetFPATempValue() {
+  //    Gets the value of the FPA Temp when the FPA temp mode is set to fixed.
+  //    Alternately, in this mode roicGetFPATemp returns the same value.
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x02;
+  functionID[2] = 0x00;
+  functionID[3] = 0x23;
+  QByteArray packet(functionID);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
+/**
+ * @brief BosonUSB::bosonGetMyriadTemp
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::bosonGetMyriadTemp() {
+  //    Gets the core temperature in °C.
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x05;
+  functionID[2] = 0x00;
+  functionID[3] = 0x68;
+  QByteArray packet(functionID);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
+/**
+ * @brief BosonUSB::captureFrames
+ * @param frameCount
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::captureFrames(int frameCount) {
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x07;
+  functionID[2] = 0x00;
+  functionID[3] = 0x02;
+  QByteArray data; // FLR_CAPTURE_SETTINGS_T
+  data.resize(10);
+  data[0] = 0xFF;
+  data[1] = 0xFF;
+  data[2] = 0xFF;
+  data[3] = 0xFF;
+  data[4] = 0xFF;
+  data[5] = 0xFF;
+  data[6] = 0xFF;
+  data[7] = 0xFF;
+  data[8] = 0xFF;
+  data[9] = 0xFF;
+  QByteArray packet(functionID + data);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
+/**
+ * @brief BosonUSB::captureSingleFrameWithSrc
+ * @return
+ * @author Louis P Meadows
+ * @date September 23rd 2021
+ */
+int BosonUSB::captureSingleFrameWithSrc() {
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x07;
+  functionID[2] = 0x00;
+  functionID[3] = 0x03;
+  QByteArray data; // FLR_CAPTURE_SRC_E
+  data.resize(4);
+  data[0] = 0xFF;
+  data[1] = 0xFF;
+  data[2] = 0xFF;
+  data[3] = 0xFF;
+  QByteArray packet(functionID + data);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
+
 // Boson is using this method: CRC-16/AUG-CCITT
 // https://github.com/meetanthony/crcphp/blob/master/crc16/crc_16_aug_ccitt.php
+/**
+ * @brief BosonUSB::CalcBlockCRC16
+ * @param bufferlen
+ * @param buffer
+ * @return
+ */
 unsigned short BosonUSB::CalcBlockCRC16(unsigned int bufferlen,
                                         unsigned char *buffer) {
   unsigned short ccitt_16Table[] = {
