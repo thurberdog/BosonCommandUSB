@@ -26,6 +26,12 @@ private:
   qint64 result;
   bool flush;
   unsigned char sequence = 0; // This number increases in every SENT commnand.
+  // FLR_ROI   region of interest
+  uint16_t rowStart;
+  uint16_t rowStop;
+  uint16_t columnStart;
+  uint16_t columnStop;
+
   QTimer *sendTimer;
   int getFPAtemperature();
   int getSerialNumber();
@@ -33,6 +39,8 @@ private:
   unsigned short CalcBlockCRC16(unsigned int bufferlen, unsigned char *buffer);
   qint64 sendBosonCommand(QByteArray bosonCommand);
   int enableRadiometry();
+  int agcSetROI(uint16_t rowStart, uint16_t rowStop, uint16_t columnStart,
+                uint16_t columnStop);
 };
 
 #endif // BOSONUSB_HPP

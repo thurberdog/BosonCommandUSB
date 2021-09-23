@@ -36,7 +36,7 @@ BosonUSB::BosonUSB(QObject *parent) : QObject(parent) {
   //  At this time, we must read all the data in the serial buffer, which can be
   //  realized by readAll().
   bosonCommandUSB->setPortName("/dev/ttyACM0");
-  bosonCommandUSB->setBaudRate(QSerialPort::Baud115200);
+  bosonCommandUSB->setBaudRate(921600); // Baudrate is 921600 for Boson.
   bosonCommandUSB->setDataBits(QSerialPort::Data8);
   bosonCommandUSB->setParity(QSerialPort::NoParity);
   bosonCommandUSB->setStopBits(QSerialPort::OneStop);
@@ -52,6 +52,7 @@ BosonUSB::BosonUSB(QObject *parent) : QObject(parent) {
   if (bosonCommandUSB->open(QIODevice::ReadWrite)) {
     // Connected
     qDebug() << __LINE__ << __FUNCTION__ << "Boson Command channel open. ";
+    agcSetROI(0, 9, 0, 9);
     enableRadiometry();
     flatFieldCorrection();
     getSerialNumber();
@@ -197,8 +198,15 @@ int BosonUSB::sendPacket(QByteArray &data, QByteArray &crc) {
  * @date September 17th 2021
  */
 qint64 BosonUSB::sendBosonCommand(QByteArray bosonCommand) {
-  qDebug() << __LINE__ << __FUNCTION__ << bosonCommand.toHex();
-  result = bosonCommandUSB->write(bosonCommand);
+  QByteArray startPacket;
+  startPacket.resize(1);
+  startPacket[0] = 0x8E;
+  QByteArray endPacket;
+  endPacket.resize(1);
+  endPacket[0] = 0xAE;
+  QByteArray bosonPacket = startPacket + bosonCommand + endPacket;
+  qDebug() << __LINE__ << __FUNCTION__ << bosonPacket.toHex();
+  result = bosonCommandUSB->write(bosonPacket);
   return result;
 }
 /**
@@ -244,6 +252,46 @@ int BosonUSB::flatFieldCorrection() {
   return sendPacket(functionID, crc);
 }
 
+// [SET] The current region of interest. Set the start and stop columns and
+// rows, starting with column=0, row=0 in the upper left corner.
+/**
+ * @brief BosonUSB::agcSetROI
+ * @param rowStart
+ * @param rowStop
+ * @param columnStart
+ * @param columnStop
+ * @return
+ * @author Louis P Meadows
+ * @date September 22th 2021
+ */
+int BosonUSB::agcSetROI(uint16_t rowStart, uint16_t rowStop,
+                        uint16_t columnStart, uint16_t columnStop) {
+  QByteArray functionID;
+  functionID.resize(4);
+  functionID[0] = 0x00;
+  functionID[1] = 0x09;
+  functionID[2] = 0x00;
+  functionID[3] = 0x20;
+  QByteArray data;
+  data.resize(8);
+  data[0] = rowStart & 0xFF;
+  data[1] = (rowStart << 8) & 0xFF;
+  data[2] = rowStop & 0xFF;
+  data[3] = (rowStop << 8) & 0xFF;
+  data[4] = columnStart & 0xFF;
+  data[5] = (columnStart << 8) & 0xFF;
+  data[6] = columnStop & 0xFF;
+  data[7] = (columnStop << 8) & 0xFF;
+  QByteArray packet(functionID + data);
+  unsigned char *buffer = (unsigned char *)packet.data();
+  unsigned short crc16 = CalcBlockCRC16(sizeof(buffer), buffer);
+  QByteArray crc;
+  crc.resize(2);
+  crc[0] = crc16 & 0xFF;
+  crc[1] = (crc16 << 8) & 0xFF;
+  packet.append(crc);
+  return sendBosonCommand(packet);
+}
 // Boson is using this method: CRC-16/AUG-CCITT
 // https://github.com/meetanthony/crcphp/blob/master/crc16/crc_16_aug_ccitt.php
 unsigned short BosonUSB::CalcBlockCRC16(unsigned int bufferlen,
