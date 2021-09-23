@@ -41,6 +41,12 @@ private:
   int enableRadiometry();
   int agcSetROI(uint16_t rowStart, uint16_t rowStop, uint16_t columnStart,
                 uint16_t columnStop);
+  int roicGetFPATemp();
+  int roicGetFPATempTable();
+  int roicGetFPATempValue();
+  int bosonGetMyriadTemp();
+  int captureFrames(int frameCount);
+  int captureSingleFrameWithSrc();
 };
 
 #endif // BOSONUSB_HPP
