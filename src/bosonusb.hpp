@@ -1,5 +1,8 @@
 #ifndef BOSONUSB_HPP
 #define BOSONUSB_HPP
+#include <chrono>   // std::chrono::seconds
+#include <iostream> // std::cout, std::endl
+#include <thread>   // std::this_thread::sleep_for
 
 #include <QDebug>
 #include <QObject>

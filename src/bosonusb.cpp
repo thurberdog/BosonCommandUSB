@@ -53,15 +53,25 @@ BosonUSB::BosonUSB(QObject *parent) : QObject(parent) {
     // Connected
     qDebug() << __LINE__ << __FUNCTION__ << "Boson Command channel open. ";
     agcSetROI(0, 9, 0, 9);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     enableRadiometry();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     flatFieldCorrection();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     getSerialNumber();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     getFPAtemperature();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     roicGetFPATemp();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     roicGetFPATempTable();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     roicGetFPATempValue();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     bosonGetMyriadTemp();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     captureFrames(3);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     captureSingleFrameWithSrc();
   } else {
     // Open error
