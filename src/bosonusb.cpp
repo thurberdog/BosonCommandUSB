@@ -57,6 +57,12 @@ BosonUSB::BosonUSB(QObject *parent) : QObject(parent) {
     flatFieldCorrection();
     getSerialNumber();
     getFPAtemperature();
+    roicGetFPATemp();
+    roicGetFPATempTable();
+    roicGetFPATempValue();
+    bosonGetMyriadTemp();
+    captureFrames(3);
+    captureSingleFrameWithSrc();
   } else {
     // Open error
     qDebug() << __LINE__ << __FUNCTION__
