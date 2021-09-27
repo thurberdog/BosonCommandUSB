@@ -1,6 +1,6 @@
 QT += quick serialport
 CONFIG += c++11
-VERSION = 0.0.2
+VERSION = 0.0.3
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
